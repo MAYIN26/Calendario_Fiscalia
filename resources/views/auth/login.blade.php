@@ -120,7 +120,7 @@
         border-radius: 10px;
         background: rgba(255,255,255,.06);
         border: 1px solid rgba(255,255,255,.1);
-        color: #f1f5f9; font-size: 14px;
+        color: #000; font-size: 14px;
         font-family: 'Inter', sans-serif;
         outline: none; transition: border-color .15s, box-shadow .15s, background .15s;
     }
