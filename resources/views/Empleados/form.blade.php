@@ -225,14 +225,14 @@
 
         <input
             type="email"
-            name="Correo"
+            name="correo"
             id="correo"
-            class="f-input {{ $errors->has('Correo') ? 'is-invalid' : '' }}"
-            value="{{ old('Correo', $empleados->Correo ?? '') }}"
+            class="f-input {{ $errors->has('correo') ? 'is-invalid' : '' }}"
+            value="{{ old('correo', $empleados->correo ?? '') }}"
             placeholder="ejemplo@correo.com"
         >
 
-        @error('Correo')
+        @error('correo')
             <div class="f-error">
                 <i class="fas fa-exclamation-circle"></i>
                 {{ $message }}

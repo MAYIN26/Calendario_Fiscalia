@@ -403,80 +403,149 @@
 </style>
 
 <div class="calendar-page">
+
     <div class="calendar-header">
+
+        {{-- BUSCADOR --}}
         <div class="search-wrap">
-            <form method="GET" action="{{ route('calendario.publico') }}" class="search-form">
-                <input type="hidden" name="fecha" value="{{ $fechaVista->format('Y-m-d') }}">
+            <form
+                method="GET"
+                action="{{ route('calendario.publico') }}"
+                class="search-form"
+            >
+
+                <input
+                    type="hidden"
+                    name="fecha"
+                    value="{{ $fechaVista->format('Y-m-d') }}"
+                >
 
                 <input
                     type="text"
                     name="buscar"
                     value="{{ $buscar ?? '' }}"
                     class="search-input"
-                    placeholder="Buscar por Alias"
+                    placeholder="Buscar por alias"
                 >
 
-                <button type="submit" class="search-btn">Buscar</button>
+                <button
+                    type="submit"
+                    class="search-btn"
+                >
+                    Buscar
+                </button>
 
                 @if(!empty($buscar))
+
                     <a
-                        href="{{ route('calendario.publico', ['fecha' => $fechaVista->format('Y-m-d')]) }}"
+                        href="{{ route('calendario.publico', [
+                            'fecha' => $fechaVista->format('Y-m-d')
+                        ]) }}"
                         class="clear-btn"
                     >
                         Limpiar
                     </a>
+
                 @endif
+
             </form>
         </div>
 
+
+        {{-- TITULO --}}
         <div class="calendar-title">
-            <h2>Calendario Publico</h2>
+            <h2>Calendario Público</h2>
             <p>Consulta de asignaciones</p>
         </div>
 
+
+        {{-- NAVEGACION --}}
         <div class="calendar-nav">
+
             <a
-                href="{{ route('calendario.publico', ['fecha' => $fechaVista->copy()->subMonth()->format('Y-m-d'), 'buscar' => $buscar]) }}"
+                href="{{ route('calendario.publico', [
+                    'fecha' => $fechaVista->copy()->subMonth()->format('Y-m-d'),
+                    'buscar' => $buscar
+                ]) }}"
                 class="calendar-btn"
             >
                 ← Mes anterior
             </a>
 
-            <form method="GET" action="{{ route('calendario.publico') }}" class="month-select-form">
+
+            <form
+                method="GET"
+                action="{{ route('calendario.publico') }}"
+                class="month-select-form"
+            >
+
                 @if(!empty($buscar))
-                    <input type="hidden" name="buscar" value="{{ $buscar }}">
+
+                    <input
+                        type="hidden"
+                        name="buscar"
+                        value="{{ $buscar }}"
+                    >
+
                 @endif
 
-                <select name="fecha" class="month-select" onchange="this.form.submit()">
+
+                <select
+                    name="fecha"
+                    class="month-select"
+                    onchange="this.form.submit()"
+                >
+
                     @php
                         $anioActual = $fechaVista->year;
                     @endphp
 
+
                     @for($mes = 1; $mes <= 12; $mes++)
+
                         @php
-                            $fechaMes = \Carbon\Carbon::create($anioActual, $mes, 1);
+                            $fechaMes = \Carbon\Carbon::create(
+                                $anioActual,
+                                $mes,
+                                1
+                            );
                         @endphp
+
 
                         <option
                             value="{{ $fechaMes->format('Y-m-d') }}"
                             {{ $fechaVista->month == $mes ? 'selected' : '' }}
                         >
+
                             {{ ucfirst($fechaMes->translatedFormat('F Y')) }}
+
                         </option>
+
                     @endfor
+
                 </select>
+
             </form>
 
+
             <a
-                href="{{ route('calendario.publico', ['fecha' => $fechaVista->copy()->addMonth()->format('Y-m-d'), 'buscar' => $buscar]) }}"
+                href="{{ route('calendario.publico', [
+                    'fecha' => $fechaVista->copy()->addMonth()->format('Y-m-d'),
+                    'buscar' => $buscar
+                ]) }}"
                 class="calendar-btn"
             >
                 Mes siguiente →
             </a>
+
         </div>
+
     </div>
 
+
     <div class="calendar-shell">
+
+        {{-- DIAS DE LA SEMANA --}}
         <div class="weekdays">
             <div class="weekday">Lunes</div>
             <div class="weekday">Martes</div>
@@ -487,14 +556,36 @@
             <div class="weekday">Domingo</div>
         </div>
 
+
+        {{-- CALENDARIO --}}
         <div class="calendar-grid">
+
             @foreach($diasCalendario as $dia)
+
                 @php
-                    $esFin = in_array($dia['fecha']->dayOfWeek, [\Carbon\Carbon::SATURDAY, \Carbon\Carbon::SUNDAY]);
-                    $esFuturo = $dia['fecha']->isFuture();
-                    $esProvisional = $esFuturo && !empty($dia['asignacion']) && !empty($dia['asignacion']->provisional);
-                    $esManual = !empty($dia['asignacion']) && !empty($dia['asignacion']->modificado_manual);
+
+                    $esFin = in_array(
+                        $dia['fecha']->dayOfWeek,
+                        [
+                            \Carbon\Carbon::SATURDAY,
+                            \Carbon\Carbon::SUNDAY
+                        ]
+                    );
+
+                    $esFuturo =
+                        $dia['fecha']->isFuture();
+
+                    $esProvisional =
+                        $esFuturo &&
+                        !empty($dia['asignacion']) &&
+                        !empty($dia['asignacion']->provisional);
+
+                    $esManual =
+                        !empty($dia['asignacion']) &&
+                        !empty($dia['asignacion']->modificado_manual);
+
                 @endphp
+
 
                 <div class="day-card
                     {{ !$dia['en_mes'] ? 'out-month' : '' }}
@@ -505,68 +596,207 @@
                     {{ !empty($buscar) && !$dia['coincide_busqueda'] ? 'search-dim' : '' }}
                     {{ !empty($buscar) && $dia['coincide_busqueda'] ? 'search-hit' : '' }}
                 ">
+
+                    {{-- CABECERA DEL DIA --}}
                     <div class="day-top">
+
                         <div class="day-number-wrap">
-                            <div class="day-number">{{ $dia['fecha']->format('d') }}</div>
-                            <div class="day-date">
-                                {{ ucfirst($dia['fecha']->translatedFormat('D')) }} · {{ $dia['fecha']->format('d/m/Y') }}
+
+                            <div class="day-number">
+                                {{ $dia['fecha']->format('d') }}
                             </div>
+
+                            <div class="day-date">
+
+                                {{ ucfirst(
+                                    $dia['fecha']->translatedFormat('D')
+                                ) }}
+
+                                ·
+
+                                {{ $dia['fecha']->format('d/m/Y') }}
+
+                            </div>
+
                         </div>
 
-                        <div style="display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end;">
+
+                        <div
+                            style="
+                                display:flex;
+                                gap:6px;
+                                flex-wrap:wrap;
+                                justify-content:flex-end;
+                            "
+                        >
+
                             @if($dia['es_hoy'])
-                                <span class="day-pill pill-hoy">Hoy</span>
+
+                                <span class="day-pill pill-hoy">
+                                    Hoy
+                                </span>
+
                             @endif
+
 
                             @if(!empty($buscar) && $dia['coincide_busqueda'])
-                                <span class="match-badge">Coincide</span>
+
+                                <span class="match-badge">
+                                    Coincide
+                                </span>
+
                             @endif
+
                         </div>
+
                     </div>
 
+
+                    {{-- ASIGNACION --}}
                     @if($dia['asignacion'])
+
                         <div class="assignment-box">
+
                             <div class="assignment-label">
+
                                 <span class="dot"></span>
 
+
                                 @if($esManual)
+
                                     Modificado
+
                                 @elseif($esProvisional)
+
                                     Provisional
+
                                 @else
-                                    {{ $dia['asignacion']->tipo === 'fin_semana' ? 'Fin de semana' : 'Asignado' }}
+
+                                    {{
+                                        $dia['asignacion']->tipo === 'fin_semana'
+                                            ? 'Fin de semana'
+                                            : 'Asignado'
+                                    }}
+
                                 @endif
+
                             </div>
 
+
+                            {{-- EMPLEADO ACTUAL --}}
                             <div class="employee-name">
-                               {{ $dia['asignacion']->empleado->alias ?: 'Empleado asignado' }}
+
+                                @if(
+                                    !empty(
+                                        $dia['asignacion']
+                                            ->empleado
+                                            ->alias
+                                    )
+                                )
+
+                                    {{
+                                        $dia['asignacion']
+                                            ->empleado
+                                            ->alias
+                                    }}
+
+                                @else
+
+                                    {{
+                                        trim(
+                                            ($dia['asignacion']->empleado->nombre ?? '')
+                                            . ' ' .
+                                            ($dia['asignacion']->empleado->apellidoPaterno ?? '')
+                                            . ' ' .
+                                            ($dia['asignacion']->empleado->apellidoMaterno ?? '')
+                                        )
+                                    }}
+
+                                @endif
+
                             </div>
 
-                            @if($esManual && !empty($dia['asignacion']->empleadoOriginal))
+
+                            {{-- REEMPLAZO MANUAL --}}
+                            @if(
+                                $esManual &&
+                                !empty(
+                                    $dia['asignacion']
+                                        ->empleadoOriginal
+                                )
+                            )
+
                                 <div class="replacement-box">
+
                                     <div class="replacement-label">
                                         Reemplaza a
                                     </div>
 
+
                                     <div class="replacement-name">
-                                        {{ $dia['asignacion']->empleadoOriginal->alias ?? 'Empleado asignado' }}
+
+                                        @if(
+                                            !empty(
+                                                $dia['asignacion']
+                                                    ->empleadoOriginal
+                                                    ->alias
+                                            )
+                                        )
+
+                                            {{
+                                                $dia['asignacion']
+                                                    ->empleadoOriginal
+                                                    ->alias
+                                            }}
+
+                                        @else
+
+                                            {{
+                                                trim(
+                                                    ($dia['asignacion']->empleadoOriginal->nombre ?? '')
+                                                    . ' ' .
+                                                    ($dia['asignacion']->empleadoOriginal->apellidoPaterno ?? '')
+                                                    . ' ' .
+                                                    ($dia['asignacion']->empleadoOriginal->apellidoMaterno ?? '')
+                                                )
+                                            }}
+
+                                        @endif
+
                                     </div>
+
                                 </div>
+
                             @endif
 
+
                             <div class="employee-meta">
-                                {{ $dia['asignacion']->nombre_dia }}
+
+                                {{
+                                    $dia['asignacion']
+                                        ->nombre_dia
+                                }}
+
                             </div>
+
                         </div>
+
                     @else
+
                         <div class="empty-state">
                             Sin asignación
                         </div>
+
                     @endif
-                </div> 
+
+                </div>
+
             @endforeach
+
         </div>
+
     </div>
+
 </div>
 
 </body>
