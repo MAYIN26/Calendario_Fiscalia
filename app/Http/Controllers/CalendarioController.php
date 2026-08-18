@@ -24,9 +24,9 @@ class CalendarioController extends Controller
 
     public function publico(Request $request)
     {
-        $data = $this->construirDatosCalendario($request, true);
+    $data = $this->construirDatosCalendario($request, true, true);
 
-        return view('calendario.publico', $data);
+    return view('calendario.publico', $data);
     }
 
     public function show($fecha)
@@ -84,7 +84,12 @@ class CalendarioController extends Controller
         ]);
     }
 
-    private function construirDatosCalendario(Request $request, bool $permitirBusqueda = true): array
+    private function construirDatosCalendario(
+    Request $request,
+    bool $permitirBusqueda = true,
+    bool $usarAlias = false
+    ): array
+
     {
         Carbon::setLocale('es');
 
@@ -150,16 +155,19 @@ class CalendarioController extends Controller
             $coincideBusqueda = false;
 
             if ($permitirBusqueda && $asignacion && $asignacion->empleado && $busqueda !== '') {
-                $nombreCompleto = trim(
-                    ($asignacion->empleado->nombre ?? '') . ' ' .
-                    ($asignacion->empleado->apellidoPaterno ?? '') . ' ' .
-                    ($asignacion->empleado->apellidoMaterno ?? '')
-                );
-
-                $coincideBusqueda = str_contains(
-                    $this->normalizarTexto($nombreCompleto),
-                    $this->normalizarTexto($busqueda)
-                );
+                if ($usarAlias) {
+                    $textoBusqueda = $asignacion->empleado->alias ?? '';
+                    } else {
+                        $textoBusqueda = trim(
+                            ($asignacion->empleado->nombre ?? '') . ' ' .
+                            ($asignacion->empleado->apellidoPaterno ?? '') . ' ' .
+                            ($asignacion->empleado->apellidoMaterno ?? '')
+                            );
+                    }
+                    $coincideBusqueda = str_contains(
+                        $this->normalizarTexto($textoBusqueda),
+                        $this->normalizarTexto($busqueda)
+                        );
             }
 
             $diasCalendario[] = [

@@ -8,12 +8,30 @@ use Illuminate\Support\Facades\Storage;
 
 class EmpleadosController extends Controller
 {
-    public function index()
-    {
-        $datos['empleados'] = Empleados::paginate(5);
-        return view('Empleados.index', $datos);
+    public function index(Request $request)
+{
+    $buscar = trim($request->get('buscar', ''));
+
+    $empleados = Empleados::query();
+
+    if ($buscar !== '') {
+        $empleados->where(function ($query) use ($buscar) {
+            $query->where('nombre', 'like', '%' . $buscar . '%')
+                ->orWhere('apellidoPaterno', 'like', '%' . $buscar . '%')
+                ->orWhere('apellidoMaterno', 'like', '%' . $buscar . '%')
+                ->orWhere('curp', 'like', '%' . $buscar . '%')
+                ->orWhere('Correo', 'like', '%' . $buscar . '%')
+                ->orWhere('alias', 'like', '%' . $buscar . '%');
+        });
     }
 
+    $empleados = $empleados
+        ->orderBy('id', 'asc')
+        ->paginate(5)
+        ->withQueryString();
+
+    return view('Empleados.index', compact('empleados', 'buscar'));
+}
 
     public function create()
     {
@@ -27,7 +45,8 @@ class EmpleadosController extends Controller
             'nombre'          => 'required|min:3|max:50|regex:/^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+$/',
             'apellidoPaterno' => 'required|min:3|max:50|regex:/^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+$/',
             'apellidoMaterno' => 'required|min:3|max:50|regex:/^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+$/',
-            'Correo'          => 'required|email|unique:empleados,Correo',
+            'Correo'          => 'nullable|email|unique:empleados,Correo',
+            "Alias"           => "nullable|string|max:100",
             'curp'            => [
                 'required',
                 'size:18',
@@ -51,7 +70,6 @@ class EmpleadosController extends Controller
             'apellidoMaterno.max'      => 'El apellido materno no puede tener más de 50 caracteres',
             'apellidoMaterno.regex'    => 'Solo puede contener letras',
 
-            'Correo.required'          => 'El correo es obligatorio',
             'Correo.email'             => 'Ingresa un correo válido',
             'Correo.unique'            => 'Este correo ya está registrado',
 
@@ -105,7 +123,8 @@ class EmpleadosController extends Controller
             'nombre'          => 'required|min:3|max:50|regex:/^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+$/',
             'apellidoPaterno' => 'required|min:3|max:50|regex:/^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+$/',
             'apellidoMaterno' => 'required|min:3|max:50|regex:/^[a-zA-ZáéíóúÁÉÍÓÚñÑ\s]+$/',
-            'Correo'          => 'required|email|unique:empleados,Correo,' . $id,
+            'Correo'          => 'nullable|email|unique:empleados,Correo,' . $id,
+            'alias'           => 'nullable|string|max:100',
             'curp'            => [
                 'required',
                 'size:18',
@@ -129,7 +148,6 @@ class EmpleadosController extends Controller
             'apellidoMaterno.max'      => 'El apellido materno no puede tener más de 50 caracteres',
             'apellidoMaterno.regex'    => 'Solo puede contener letras',
 
-            'Correo.required'          => 'El correo es obligatorio',
             'Correo.email'             => 'Ingresa un correo válido',
             'Correo.unique'            => 'Este correo ya está registrado',
 

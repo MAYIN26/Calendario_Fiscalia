@@ -10,6 +10,7 @@
     }
     .page-hd h2 { font-size: 22px; font-weight: 700; color: #0f172a; margin: 0; }
     .page-hd small { font-size: 13px; color: #94a3b8; display: block; margin-top: 2px; }
+    
 
     /* ── BTN AGREGAR ─────────────────────────── */
     .btn-agregar {
@@ -122,6 +123,67 @@
     }
     .btn-del-t:hover { background: #ffe4e6; }
 
+    .employee-search-wrap {
+    margin-bottom: 18px;
+}
+
+.employee-search-form {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.employee-search-input {
+    width: 360px;
+    max-width: 100%;
+    padding: 10px 14px;
+    border: 1px solid #dbeafe;
+    border-radius: 10px;
+    background: white;
+    color: #0f172a;
+    font-size: 14px;
+    outline: none;
+}
+
+.employee-search-input:focus {
+    border-color: #6366f1;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, .12);
+}
+
+.employee-search-btn,
+.employee-clear-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 15px;
+    border-radius: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.employee-search-btn {
+    border: none;
+    background: #6366f1;
+    color: white;
+    cursor: pointer;
+}
+
+.employee-search-btn:hover {
+    background: #4f46e5;
+}
+
+.employee-clear-btn {
+    border: 1px solid #dbeafe;
+    background: white;
+    color: #1e3a8a;
+}
+
+.employee-clear-btn:hover {
+    background: #eff6ff;
+}
+
     /* paginación */
     .pag-wrap { padding: 14px 20px; border-top: 1px solid #f1f5f9; }
     .pag-wrap .pagination { margin: 0; justify-content: flex-end; }
@@ -143,6 +205,33 @@
     <a href="{{ url('/empleados/create') }}" class="btn-agregar">
         <i class="fas fa-plus"></i> Agregar Empleado
     </a>
+</div>
+
+<div class="employee-search-wrap">
+
+    <form method="GET" action="{{ url('/empleados') }}" class="employee-search-form">
+
+        <input
+            type="text"
+            name="buscar"
+            value="{{ $buscar ?? '' }}"
+            class="employee-search-input"
+            placeholder="Buscar por nombre, apellido, alias, CURP o correo"
+        >
+
+        <button type="submit" class="employee-search-btn">
+            <i class="fas fa-search"></i>
+            Buscar
+        </button>
+
+        @if(!empty($buscar))
+            <a href="{{ url('/empleados') }}" class="employee-clear-btn">
+                Limpiar
+            </a>
+        @endif
+
+    </form>
+
 </div>
 
 {{-- TABLA --}}

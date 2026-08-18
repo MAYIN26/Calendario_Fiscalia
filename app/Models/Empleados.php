@@ -17,6 +17,7 @@ class Empleados extends Model
         'curp',
         'foto',
         'activo',
+        "alias",
     ];
 
     public function reservasTelefonos()

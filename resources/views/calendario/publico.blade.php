@@ -413,7 +413,7 @@
                     name="buscar"
                     value="{{ $buscar ?? '' }}"
                     class="search-input"
-                    placeholder="Buscar por nombre o apellido"
+                    placeholder="Buscar por Alias"
                 >
 
                 <button type="submit" class="search-btn">Buscar</button>
@@ -539,9 +539,7 @@
                             </div>
 
                             <div class="employee-name">
-                                {{ $dia['asignacion']->empleado->nombre ?? '' }}
-                                {{ $dia['asignacion']->empleado->apellidoPaterno ?? '' }}
-                                {{ $dia['asignacion']->empleado->apellidoMaterno ?? '' }}
+                               {{ $dia['asignacion']->empleado->alias ?: 'Empleado asignado' }}
                             </div>
 
                             @if($esManual && !empty($dia['asignacion']->empleadoOriginal))
@@ -551,9 +549,7 @@
                                     </div>
 
                                     <div class="replacement-name">
-                                        {{ $dia['asignacion']->empleadoOriginal->nombre ?? '' }}
-                                        {{ $dia['asignacion']->empleadoOriginal->apellidoPaterno ?? '' }}
-                                        {{ $dia['asignacion']->empleadoOriginal->apellidoMaterno ?? '' }}
+                                        {{ $dia['asignacion']->empleadoOriginal->alias ?? 'Empleado asignado' }}
                                     </div>
                                 </div>
                             @endif
