@@ -6,6 +6,7 @@ use Illuminate\Http\Request;
 use App\Models\Empleados;
 use App\Models\AsignacionCalendario;
 use Carbon\Carbon;
+use Illuminate\Support\Collection;
 
 class CalendarioController extends Controller
 {
@@ -13,9 +14,7 @@ class CalendarioController extends Controller
     {
         $data = $this->construirDatosCalendario($request, true);
 
-        $empleadosParaCambiar = Empleados::where('activo', 1)
-            ->orderBy('id', 'asc')
-            ->get();
+        $empleadosParaCambiar = $this->obtenerEmpleadosActivos();
 
         return view('calendario.index', array_merge($data, [
             'empleadosParaCambiar' => $empleadosParaCambiar,
@@ -24,9 +23,9 @@ class CalendarioController extends Controller
 
     public function publico(Request $request)
     {
-    $data = $this->construirDatosCalendario($request, true, true);
+        $data = $this->construirDatosCalendario($request, true, true);
 
-    return view('calendario.publico', $data);
+        return view('calendario.publico', $data);
     }
 
     public function show($fecha)
@@ -56,8 +55,8 @@ class CalendarioController extends Controller
         $empleadosJS = $empleadosActivos->map(function ($emp) {
             $nombreCompleto = trim(
                 $emp->nombre . ' ' .
-                $emp->apellidoPaterno . ' ' .
-                $emp->apellidoMaterno
+                    $emp->apellidoPaterno . ' ' .
+                    $emp->apellidoMaterno
             );
 
             return [
@@ -65,8 +64,8 @@ class CalendarioController extends Controller
                 'nombre' => $nombreCompleto,
                 'normalizado' => strtolower(
                     str_replace(
-                        ['á','é','í','ó','ú','ñ'],
-                        ['a','e','i','o','u','n'],
+                        ['á', 'é', 'í', 'ó', 'ú', 'ñ'],
+                        ['a', 'e', 'i', 'o', 'u', 'n'],
                         $nombreCompleto
                     )
                 ),
@@ -85,15 +84,16 @@ class CalendarioController extends Controller
     }
 
     private function construirDatosCalendario(
-    Request $request,
-    bool $permitirBusqueda = true,
-    bool $usarAlias = false
-    ): array
-
-    {
+        Request $request,
+        bool $permitirBusqueda = true,
+        bool $usarAlias = false
+    ): array {
         Carbon::setLocale('es');
 
+        // mantenemos el inicio del sistema por cualquier cosa.
         $fechaInicioSistema = Carbon::create(config('app.system_create'))->startOfDay();
+        // no tomamos desde el comienzo del tiempo si no desde el ultimo dato asignado
+        $ultimaAsignacion = AsignacionCalendario::latest()?->first();
         $hoy = Carbon::today();
 
         $busqueda = $permitirBusqueda ? trim($request->get('buscar', '')) : '';
@@ -102,8 +102,9 @@ class CalendarioController extends Controller
             ? Carbon::parse($request->get('fecha'))
             : $hoy->copy();
 
-        if ($hoy->gte($fechaInicioSistema)) {
-            $this->generarAsignacionesHastaHoy($fechaInicioSistema, $hoy);
+        // si no hay asignaciones las generamos en su completitud
+        if ($hoy->gte($ultimaAsignacion->fecha)) {
+            $this->generarAsignacionesHastaHoy($ultimaAsignacion->fecha, $hoy);
         }
 
         $inicioMes = $fechaVista->copy()->startOfMonth();
@@ -157,30 +158,29 @@ class CalendarioController extends Controller
             if ($permitirBusqueda && $asignacion && $asignacion->empleado && $busqueda !== '') {
                 $nombreCompleto = trim(
                     ($asignacion->empleado->nombre ?? '') . ' ' .
-                    ($asignacion->empleado->apellidoPaterno ?? '') . ' ' .
-                    ($asignacion->empleado->apellidoMaterno ?? '')
-                    
-                    );
-                    
-                    if ($usarAlias) {
-                        $alias = $asignacion->empleado->alias ?? '';
-                        $coincideBusqueda =
+                        ($asignacion->empleado->apellidoPaterno ?? '') . ' ' .
+                        ($asignacion->empleado->apellidoMaterno ?? '')
+
+                );
+
+                if ($usarAlias) {
+                    $alias = $asignacion->empleado->alias ?? '';
+                    $coincideBusqueda =
                         str_contains(
                             $this->normalizarTexto($alias),
                             $this->normalizarTexto($busqueda)
-                            )
-                            ||
-                            str_contains(
-                                $this->normalizarTexto($nombreCompleto),
-                                $this->normalizarTexto($busqueda)
-                                );
-                                
-                            } else {
-                            $coincideBusqueda = str_contains(
-                                $this->normalizarTexto($nombreCompleto),
-                                $this->normalizarTexto($busqueda)
-                                );
-                            }
+                        )
+                        ||
+                        str_contains(
+                            $this->normalizarTexto($nombreCompleto),
+                            $this->normalizarTexto($busqueda)
+                        );
+                } else {
+                    $coincideBusqueda = str_contains(
+                        $this->normalizarTexto($nombreCompleto),
+                        $this->normalizarTexto($busqueda)
+                    );
+                }
             }
 
             $diasCalendario[] = [
@@ -203,39 +203,134 @@ class CalendarioController extends Controller
         ];
     }
 
-    private function generarAsignacionesHastaHoy(Carbon $fechaInicioSistema, Carbon $hoy): void
+    protected function generarUltimaAsignacionEntreSemana(Carbon $fecha_evaluacion): void
     {
-        $empleadosActivos = $this->obtenerEmpleadosActivos();
+        if ($fecha_evaluacion->isWeekend()) {
+            return;
+        }
 
+        $empleadosActivos = $this->obtenerEmpleadosActivos();
         if ($empleadosActivos->isEmpty()) {
             return;
         }
 
-        $fecha = $fechaInicioSistema->copy();
+        try {
+            $fechaStr = $fecha_evaluacion->copy()->toDateString();
+
+            // revalidación para evitar duplicados
+            $existe = AsignacionCalendario::where('fecha', $fechaStr)->exists();
+            if ($existe) {
+                return;
+            }
+
+            $ultimo_empleado = $this->obtenerUltimoEmpleadoEntreSemana($fecha_evaluacion);
+            $siguiente_empleado = $this->obtenerSiguienteEmpleadoEnRol($empleadosActivos, $ultimo_empleado);
+
+            AsignacionCalendario::create([
+                'empleado_id' => $siguiente_empleado->id,
+                'empleado_original_id' => null,
+                'fecha' => $fechaStr,
+                'nombre_dia' => $fecha_evaluacion->dayName,
+                'tipo' => 'normal',
+                'modificado_manual' => false,
+            ]);
+        } catch (\Throwable $th) {
+            throw $th;
+        }
+    }
+
+    protected function generarUltimaAsignacionFinSemana(Carbon $fecha_evaluacion): void
+    {
+        if ($fecha_evaluacion->isWeekday()) {
+            return;
+        }
+
+        $empleadosActivos = $this->obtenerEmpleadosActivos();
+        if ($empleadosActivos->isEmpty()) {
+            return;
+        }
+
+        try {
+            $fechaStr = $fecha_evaluacion->copy()->toDateString();
+
+            // revalidación para evitar duplicados
+            $existe = AsignacionCalendario::where('fecha', $fechaStr)->exists();
+            if ($existe) {
+                return;
+            }
+
+            $id_empleado = null;
+            if ($fecha_evaluacion->isSunday()) {
+                $fecha_sabado = $fecha_evaluacion->copy()->subDay()->toDateString();
+                $asignacion_sabado = AsignacionCalendario::where('fecha', $fecha_sabado)->first();
+
+                if ($asignacion_sabado) {
+                    $id_empleado = $asignacion_sabado->empleado_id;
+                }
+            }
+
+            if (!$id_empleado) {
+                $inicio_fin_semana_actual = $fecha_evaluacion->copy()->startOfWeek(Carbon::SATURDAY)->toDateString();
+                $id_ultimo_empleado = $this->obtenerUltimoEmpleadoFinSemanaAnterior($inicio_fin_semana_actual);
+                $siguiente_empleado = $this->obtenerSiguienteEmpleadoEnRol($empleadosActivos, $id_ultimo_empleado);
+                $id_empleado = $siguiente_empleado->id;
+            }
+
+
+            AsignacionCalendario::create([
+                'empleado_id' => $id_empleado,
+                'empleado_original_id' => null,
+                'fecha' => $fechaStr,
+                'nombre_dia' => $fecha_evaluacion->dayName,
+                'tipo' => 'fin_semana',
+                'modificado_manual' => false,
+            ]);
+        } catch (\Throwable $th) {
+            throw $th;
+        }
+    }
+
+    protected function obtenerUltimoEmpleadoEntreSemana(Carbon $fecha_evaluacion)
+    {
+        $ultimaAsignacionEntreSemana = AsignacionCalendario::where('fecha', '<', $fecha_evaluacion->toDateString())
+            ->orderBy('fecha', 'desc')
+            ->take(7)
+            ->get()
+            ->first(fn(AsignacionCalendario $asignacion) => $asignacion->fecha->isWeekday());
+
+        return $ultimaAsignacionEntreSemana?->empleado_id;
+    }
+
+    protected function obtenerUltimoEmpleadoFinSemanaAnterior(string $fecha_inicio_fin_semana_actual): ?int
+    {
+        return AsignacionCalendario::query()
+            ->where('tipo', 'fin_semana')
+            ->where('fecha', '<', $fecha_inicio_fin_semana_actual)
+            ->orderBy('fecha', 'desc')
+            ->value('empleado_id');
+    }
+
+    protected function obtenerSiguienteEmpleadoEnRol(Collection $empleadosActivos, ?int $ultimo_empleado)
+    {
+        if ($ultimo_empleado == null) {
+            $empleadosActivos->first();
+        }
+
+        // busca el primer id mayor al ultimo empleado
+        $siguiente = $empleadosActivos->first(fn($empleado) => $empleado->id > $ultimo_empleado);
+
+        return $siguiente ?? $empleadosActivos->first();
+    }
+
+    protected function generarAsignacionesHastaHoy(Carbon $ultima_asignacion, Carbon $hoy): void
+    {
+        $fecha = $ultima_asignacion->copy();
 
         while ($fecha->lte($hoy)) {
-            $fechaStr = $fecha->format('Y-m-d');
-
-            $yaExiste = AsignacionCalendario::where('fecha', $fechaStr)->exists();
-
-            if (!$yaExiste) {
-                $asignacion = $this->calcularAsignacionBase(
-                    $fecha->copy(),
-                    $fechaInicioSistema,
-                    $empleadosActivos,
-                    false
-                );
-
-                if ($asignacion && isset($asignacion->empleado)) {
-                    AsignacionCalendario::create([
-                        'empleado_id' => $asignacion->empleado->id,
-                        'empleado_original_id' => null,
-                        'fecha' => $fechaStr,
-                        'nombre_dia' => $asignacion->nombre_dia,
-                        'tipo' => $asignacion->tipo,
-                        'modificado_manual' => false,
-                    ]);
-                }
+            if ($fecha->isWeekend()) {
+                $this->generarUltimaAsignacionFinSemana($fecha);
+            } else {
+                $this->generarUltimaAsignacionEntreSemana($fecha);
             }
 
             $fecha->addDay();
@@ -254,7 +349,6 @@ class CalendarioController extends Controller
         }
 
         $totalEmpleados = $empleadosActivos->count();
-
 
         $ultimoLaboralReal = AsignacionCalendario::with('empleado', 'empleadoOriginal')
             ->whereDate('fecha', '<', $fechaInicio->format('Y-m-d'))
@@ -365,94 +459,95 @@ class CalendarioController extends Controller
             'modificado_manual' => false,
         ];
     }
+
     public function asignarManual(Request $request)
-{
-    $request->validate([
-        'fecha' => 'required|date',
-        'empleado_id' => 'required|exists:empleados,id',
-    ]);
-
-    $fecha = Carbon::parse($request->fecha);
-
-    if ($fecha->lt(Carbon::today())) {
-        return redirect()->back()->withErrors([
-            'fecha' => 'No puedes modificar días anteriores.'
+    {
+        $request->validate([
+            'fecha' => 'required|date',
+            'empleado_id' => 'required|exists:empleados,id',
         ]);
+
+        $fecha = Carbon::parse($request->fecha);
+
+        if ($fecha->lt(Carbon::today())) {
+            return redirect()->back()->withErrors([
+                'fecha' => 'No puedes modificar días anteriores.'
+            ]);
+        }
+
+        $tipo = $fecha->isWeekend() ? 'fin_semana' : 'normal';
+
+        $empleadosActivos = $this->obtenerEmpleadosActivos();
+
+        $asignacionBase = $this->calcularAsignacionBase(
+            $fecha->copy(),
+            Carbon::create(config('app.system_create'))->startOfDay(),
+            $empleadosActivos,
+            false
+        );
+
+        $empleadoOriginalId = $asignacionBase && isset($asignacionBase->empleado)
+            ? $asignacionBase->empleado->id
+            : null;
+
+        AsignacionCalendario::updateOrCreate(
+            ['fecha' => $fecha->format('Y-m-d')],
+            [
+                'empleado_id' => $request->empleado_id,
+                'empleado_original_id' => $empleadoOriginalId,
+                'nombre_dia' => ucfirst($fecha->translatedFormat('l')),
+                'tipo' => $tipo,
+                'modificado_manual' => true,
+            ]
+        );
+
+        return redirect()
+            ->route('calendario.show', $fecha->format('Y-m-d'))
+            ->with('mensaje', 'El Empleado a cambiado con Exito');
     }
-
-    $tipo = $fecha->isWeekend() ? 'fin_semana' : 'normal';
-
-    $empleadosActivos = $this->obtenerEmpleadosActivos();
-
-    $asignacionBase = $this->calcularAsignacionBase(
-        $fecha->copy(),
-        Carbon::create(config('app.system_create'))->startOfDay(),
-        $empleadosActivos,
-        false
-    );
-
-    $empleadoOriginalId = $asignacionBase && isset($asignacionBase->empleado)
-        ? $asignacionBase->empleado->id
-        : null;
-
-    AsignacionCalendario::updateOrCreate(
-        ['fecha' => $fecha->format('Y-m-d')],
-        [
-            'empleado_id' => $request->empleado_id,
-            'empleado_original_id' => $empleadoOriginalId,
-            'nombre_dia' => ucfirst($fecha->translatedFormat('l')),
-            'tipo' => $tipo,
-            'modificado_manual' => true,
-        ]
-    );
-
-    return redirect()
-        ->route('calendario.show', $fecha->format('Y-m-d'))
-        ->with('mensaje', 'El Empleado a cambiado con Exito');
-}
 
     public function restaurarManual(Request $request)
-{
-    $request->validate([
-        'fecha' => 'required|date',
-    ]);
-
-    $fecha = Carbon::parse($request->fecha);
-
-    if ($fecha->lt(Carbon::today())) {
-        return redirect()->back()->withErrors([
-            'fecha' => 'No puedes restaurar días anteriores.'
+    {
+        $request->validate([
+            'fecha' => 'required|date',
         ]);
-    }
 
-    $asignacion = AsignacionCalendario::where('fecha', $fecha->format('Y-m-d'))->first();
+        $fecha = Carbon::parse($request->fecha);
 
-    if (!$asignacion) {
-        return redirect()->back()->with('mensaje', 'No hay cambio manual para restaurar.');
-    }
+        if ($fecha->lt(Carbon::today())) {
+            return redirect()->back()->withErrors([
+                'fecha' => 'No puedes restaurar días anteriores.'
+            ]);
+        }
 
-    if (!$asignacion->modificado_manual) {
-        return redirect()->back()->with('mensaje', 'Esta asignación ya está en modo automático.');
-    }
+        $asignacion = AsignacionCalendario::where('fecha', $fecha->format('Y-m-d'))->first();
 
-    $empleadoOriginalId = $asignacion->empleado_original_id;
+        if (!$asignacion) {
+            return redirect()->back()->with('mensaje', 'No hay cambio manual para restaurar.');
+        }
 
-    if (!$empleadoOriginalId) {
-        return redirect()->back()->withErrors([
-            'fecha' => 'No se encontró el empleado original.'
+        if (!$asignacion->modificado_manual) {
+            return redirect()->back()->with('mensaje', 'Esta asignación ya está en modo automático.');
+        }
+
+        $empleadoOriginalId = $asignacion->empleado_original_id;
+
+        if (!$empleadoOriginalId) {
+            return redirect()->back()->withErrors([
+                'fecha' => 'No se encontró el empleado original.'
+            ]);
+        }
+
+        $asignacion->update([
+            'empleado_id' => $empleadoOriginalId,
+            'empleado_original_id' => null,
+            'modificado_manual' => false,
         ]);
+
+        return redirect()
+            ->route('calendario.show', $fecha->format('Y-m-d'))
+            ->with('mensaje', 'Cambio manual asignado con éxito.');
     }
-
-    $asignacion->update([
-        'empleado_id' => $empleadoOriginalId,
-        'empleado_original_id' => null,
-        'modificado_manual' => false,
-    ]);
-
-    return redirect()
-        ->route('calendario.show', $fecha->format('Y-m-d'))
-        ->with('mensaje', 'Cambio manual asignado con éxito.');
-}
 
     private function obtenerEmpleadoBaseId($asignacion): int
     {
@@ -513,9 +608,21 @@ class CalendarioController extends Controller
         $texto = mb_strtolower(trim($texto), 'UTF-8');
 
         $reemplazos = [
-            'á' => 'a', 'é' => 'e', 'í' => 'i', 'ó' => 'o', 'ú' => 'u',
-            'à' => 'a', 'è' => 'e', 'ì' => 'i', 'ò' => 'o', 'ù' => 'u',
-            'ä' => 'a', 'ë' => 'e', 'ï' => 'i', 'ö' => 'u', 'ü' => 'u',
+            'á' => 'a',
+            'é' => 'e',
+            'í' => 'i',
+            'ó' => 'o',
+            'ú' => 'u',
+            'à' => 'a',
+            'è' => 'e',
+            'ì' => 'i',
+            'ò' => 'o',
+            'ù' => 'u',
+            'ä' => 'a',
+            'ë' => 'e',
+            'ï' => 'i',
+            'ö' => 'u',
+            'ü' => 'u',
             'ñ' => 'n',
         ];
 

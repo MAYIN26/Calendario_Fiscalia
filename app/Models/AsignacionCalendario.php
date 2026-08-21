@@ -17,6 +17,11 @@ class AsignacionCalendario extends Model
         'modificado_manual'
     ];
 
+    protected $casts = [
+        'fecha' => 'date',
+        'empleado_id' => 'int',
+    ];
+
     public function empleado()
     {
         return $this->belongsTo(Empleados::class, 'empleado_id');
